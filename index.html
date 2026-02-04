@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Quản lý Sinh Viên</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <style>
+      body {
+        padding: 20px;
+        background-color: #f8f9fa;
+      }
+      .card {
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      }
+      .avatar-thumb {
+        width: 50px;
+        height: 50px;
+        object-fit: cover;
+        border-radius: 50%;
+        border: 2px solid #dee2e6;
+      }
+      #loading {
+        display: none;
+        text-align: center;
+        margin-top: 20px;
+      }
+      .pagination {
+        justify-content: center;
+        margin-top: 20px;
+      }
+      .page-link {
+        cursor: pointer;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 class="text-center mb-4 text-primary">Quản Lý Sinh Viên</h1>
+
+      <div class="card mb-4">
+        <div class="card-header bg-primary text-white">
+          <h5 class="mb-0" id="formTitle">Thêm Sinh Viên Mới</h5>
+        </div>
+        <div class="card-body">
+          <form id="studentForm">
+            <input type="hidden" id="studentId" />
+            <div class="row g-3">
+              <div class="col-md-5">
+                <label for="name" class="form-label">Họ và Tên</label>
+                <input
+                  type="text"
+                  class="form-control"
+                  id="name"
+                  placeholder="Nhập tên sinh viên"
+                  required
+                />
+              </div>
+
+              <div class="col-md-5">
+                <label for="avatar" class="form-label">Link Avatar (URL)</label>
+                <input
+                  type="url"
+                  class="form-control"
+                  id="avatar"
+                  placeholder="https://png.pngtree.com/png-vector/20220709/ourmid/pngtree-businessman-user-avatar-wearing-suit-with-red-tie-png-image_5809521.png"
+                />
+                <div class="form-text text-muted">
+                  Bỏ trống sẽ sử dụng ảnh mặc định.
+                </div>
+              </div>
+
+              <div class="col-md-2 d-flex align-items-end">
+                <button
+                  type="submit"
+                  class="btn btn-success w-100"
+                  id="submitBtn"
+                >
+                  Lưu
+                </button>
+                <button
+                  type="button"
+                  class="btn btn-secondary w-100 d-none ms-2"
+                  id="cancelBtn"
+                  onclick="resetForm()"
+                >
+                  Hủy
+                </button>
+              </div>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card">
+        <div
+          class="card-header d-flex justify-content-between align-items-center"
+        >
+          <h5 class="mb-0">Danh sách Sinh Viên</h5>
+          <span class="badge bg-secondary" id="totalRecords">0 bản ghi</span>
+        </div>
+        <div class="card-body">
+          <div id="loading" class="spinner-border text-primary" role="status">
+            <span class="visually-hidden">Loading...</span>
+          </div>
+
+          <div class="table-responsive">
+            <table class="table table-striped table-hover align-middle">
+              <thead class="table-dark">
+                <tr>
+                  <th style="width: 80px">Avatar</th>
+                  <th>Họ và Tên</th>
+                  <th>Ngày tạo</th>
+                  <th style="width: 150px">Hành động</th>
+                </tr>
+              </thead>
+              <tbody id="studentTableBody"></tbody>
+            </table>
+          </div>
+
+          <nav aria-label="Page navigation">
+            <ul class="pagination" id="pagination"></ul>
+          </nav>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API_URL =
+        "https://6982f0de9c3efeb892a3c433.mockapi.io/api/v1/sinhvien";
+      // Link ảnh mặc định bạn yêu cầu
+      const DEFAULT_AVATAR =
+        "https://png.pngtree.com/png-vector/20220709/ourmid/pngtree-businessman-user-avatar-wearing-suit-with-red-tie-png-image_5809521.png";
+
+      const ITEMS_PER_PAGE = 7;
+      let currentPage = 1;
+      let allStudents = [];
+
+      const studentForm = document.getElementById("studentForm");
+      const studentTableBody = document.getElementById("studentTableBody");
+      const paginationEl = document.getElementById("pagination");
+      const totalRecordsEl = document.getElementById("totalRecords");
+      const formTitle = document.getElementById("formTitle");
+      const submitBtn = document.getElementById("submitBtn");
+      const cancelBtn = document.getElementById("cancelBtn");
+      const loading = document.getElementById("loading");
+
+      // --- 1. GET ---
+      async function getStudents() {
+        loading.style.display = "block";
+        studentTableBody.innerHTML = "";
+        try {
+          const response = await fetch(API_URL);
+          const data = await response.json();
+          allStudents = data.sort((a, b) => b.id - a.id);
+          totalRecordsEl.innerText = `${allStudents.length} bản ghi`;
+          renderTable();
+          renderPagination();
+        } catch (error) {
+          alert("Lỗi: " + error);
+        } finally {
+          loading.style.display = "none";
+        }
+      }
+
+      function renderTable() {
+        studentTableBody.innerHTML = "";
+        const start = (currentPage - 1) * ITEMS_PER_PAGE;
+        const end = start + ITEMS_PER_PAGE;
+        const pageData = allStudents.slice(start, end);
+
+        let html = "";
+        pageData.forEach((student) => {
+          const dateStr = new Date(student.createdAt).toLocaleString("vi-VN");
+          // Yêu cầu: Đã bỏ cột ID trong từng dòng
+          html += `
+                <tr>
+                    <td><img src="${student.avatar}" class="avatar-thumb" onerror="this.src='${DEFAULT_AVATAR}'"></td>
+                    <td class="fw-bold">${student.name}</td>
+                    <td>${dateStr}</td>
+                    <td>
+                        <button class="btn btn-warning btn-sm" onclick="editStudent('${student.id}')">Sửa</button>
+                        <button class="btn btn-danger btn-sm" onclick="deleteStudent('${student.id}')">Xóa</button>
+                    </td>
+                </tr>
+            `;
+        });
+        studentTableBody.innerHTML = html;
+      }
+
+      function renderPagination() {
+        paginationEl.innerHTML = "";
+        const totalPages = Math.ceil(allStudents.length / ITEMS_PER_PAGE);
+        if (totalPages <= 1) return;
+
+        let html = `<li class="page-item ${
+          currentPage === 1 ? "disabled" : ""
+        }"><a class="page-link" onclick="changePage(${
+          currentPage - 1
+        })">Trước</a></li>`;
+        for (let i = 1; i <= totalPages; i++) {
+          html += `<li class="page-item ${
+            i === currentPage ? "active" : ""
+          }"><a class="page-link" onclick="changePage(${i})">${i}</a></li>`;
+        }
+        html += `<li class="page-item ${
+          currentPage === totalPages ? "disabled" : ""
+        }"><a class="page-link" onclick="changePage(${
+          currentPage + 1
+        })">Sau</a></li>`;
+        paginationEl.innerHTML = html;
+      }
+
+      function changePage(page) {
+        const totalPages = Math.ceil(allStudents.length / ITEMS_PER_PAGE);
+        if (page < 1 || page > totalPages) return;
+        currentPage = page;
+        renderTable();
+        renderPagination();
+      }
+
+      // --- 2. CREATE & UPDATE ---
+      studentForm.addEventListener("submit", async function (e) {
+        e.preventDefault();
+        const id = document.getElementById("studentId").value;
+        const name = document.getElementById("name").value;
+        let avatarInput = document.getElementById("avatar").value.trim();
+
+        // Yêu cầu: Logic kiểm tra nếu rỗng thì lấy mặc định
+        if (avatarInput === "") {
+          avatarInput = DEFAULT_AVATAR;
+        }
+
+        const payload = { name, avatar: avatarInput };
+
+        try {
+          if (id) {
+            await fetch(`${API_URL}/${id}`, {
+              method: "PUT",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            alert("Cập nhật thành công!");
+          } else {
+            await fetch(API_URL, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(payload),
+            });
+            alert("Thêm mới thành công!");
+            currentPage = 1;
+          }
+          resetForm();
+          getStudents();
+        } catch (error) {
+          alert("Lỗi: " + error);
+        }
+      });
+
+      // --- 3. DELETE ---
+      async function deleteStudent(id) {
+        if (confirm(`Xóa sinh viên này?`)) {
+          try {
+            await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+            const totalPages = Math.ceil(
+              (allStudents.length - 1) / ITEMS_PER_PAGE
+            );
+            if (currentPage > totalPages && currentPage > 1)
+              currentPage = totalPages;
+            getStudents();
+          } catch (error) {
+            alert("Lỗi xóa: " + error);
+          }
+        }
+      }
+
+      // --- 4. EDIT ---
+      function editStudent(id) {
+        const student = allStudents.find((s) => s.id == id);
+        if (student) {
+          document.getElementById("studentId").value = student.id;
+          document.getElementById("name").value = student.name;
+          document.getElementById("avatar").value = student.avatar;
+
+          formTitle.innerText = "Sửa Sinh Viên";
+          submitBtn.innerText = "Cập nhật";
+          submitBtn.classList.replace("btn-success", "btn-warning");
+          cancelBtn.classList.remove("d-none");
+          window.scrollTo(0, 0);
+        }
+      }
+
+      function resetForm() {
+        studentForm.reset();
+        document.getElementById("studentId").value = "";
+        formTitle.innerText = "Thêm Sinh Viên Mới";
+        submitBtn.innerText = "Thêm mới";
+        submitBtn.classList.replace("btn-warning", "btn-success");
+        cancelBtn.classList.add("d-none");
+      }
+
+      getStudents();
+    </script>
+  </body>
+</html>
